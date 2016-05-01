@@ -132,8 +132,8 @@ class BuiltValueGenerator extends Generator {
     for (final field in classElement.fields) {
       if (!field.isStatic &&
           field.getter != null &&
-          (field.getter.isAbstract || field.getter.isSynthetic)) result
-          .add(field);
+          (field.getter.isAbstract || field.getter.isSynthetic))
+        result.add(field);
     }
     return result;
   }
@@ -213,8 +213,19 @@ class BuiltValueGenerator extends Generator {
 
     final buildableFields = builderFields.where(
         (field) => field.getter.returnType.displayName.contains('Builder'));
+
     final buildableFieldNames =
         buildableFields.map((field) => field.displayName);
+
+    final buildableCollectionFields = buildableFields.where((field) {
+      var fieldName = field.getter.returnType.displayName;
+      return (fieldName.startsWith('SetBuilder<') ||
+              fieldName.startsWith('ListBuilder<')) &&
+          fieldName.substring(fieldName.indexOf('<')).contains('Builder');
+    });
+
+    final buildableCollectionFieldNames =
+        buildableCollectionFields.map((field) => field.displayName);
 
     result.writeln('class _\$$className extends $className {');
     for (final field in fields) {
@@ -293,7 +304,8 @@ class BuiltValueGenerator extends Generator {
       return buildableFieldNames.contains(name)
           ? 'super.$name = other.$name?.toBuilder();'
           : 'super.$name = other.$name;';
-    })).join('\n'));
+    }))
+        .join('\n'));
     result.writeln('}');
 
     result.writeln('void update(updates(${className}Builder b)) {'
@@ -310,9 +322,22 @@ class BuiltValueGenerator extends Generator {
     result.write(builderFields.map((field) {
       final fieldName = field.displayName;
 
-      return buildableFieldNames.contains(fieldName)
-          ? '$fieldName: $fieldName?.build()'
-          : '$fieldName: $fieldName';
+      String fieldBody() {
+        if (buildableCollectionFieldNames.contains(fieldName)) {
+          final fieldTypeName = field.getter.returnType.displayName;
+          final newFieldTypeName = fieldTypeName.replaceFirst(
+              'Builder', '', fieldTypeName.indexOf('<'));
+          return '$fieldName != null ? '
+              'new $newFieldTypeName($fieldName.build().map((v) => '
+              'v.build())).build() : null';
+        } else {
+          return buildableFieldNames.contains(fieldName)
+              ? '$fieldName?.build()'
+              : '$fieldName';
+        }
+      }
+
+      return '$fieldName: ${fieldBody()}';
     }).join(', '));
     result.write(');');
     result.writeln('}');
