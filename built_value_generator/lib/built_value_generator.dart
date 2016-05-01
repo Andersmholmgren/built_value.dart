@@ -300,10 +300,28 @@ class BuiltValueGenerator extends Generator {
     result.writeln('_\$${className}Builder() : super._();');
 
     result.writeln('void replace(${className} other) {');
-    result.writeln((fieldNames.map((name) {
-      return buildableFieldNames.contains(name)
-          ? 'super.$name = other.$name?.toBuilder();'
-          : 'super.$name = other.$name;';
+    result.writeln((fields.map((field) {
+      String fieldBody() {
+        final fieldName = field.displayName;
+
+        if (buildableCollectionFieldNames.contains(fieldName)) {
+          final fieldTypeName = field.getter.returnType.displayName;
+          final newFieldTypeName = fieldTypeName.replaceFirst(
+              'Builder', '', fieldTypeName.indexOf('<'));
+//          return '$fieldName != null ? '
+//              'new $newFieldTypeName($fieldName.map((v) => '
+//              'v.toBuilder())).build() : null';
+          return '(other.$fieldName != null ? '
+              'new SetBuilder<PropertyBuilder>(other.$fieldName.map((p) => '
+              'p.toBuilder())) : null);';
+        } else {
+          return buildableFieldNames.contains(fieldName)
+              ? 'other.$fieldName?.toBuilder()'
+              : 'other.$fieldName';
+        }
+      }
+
+      return 'super.$name = ${fieldBody()};';
     }))
         .join('\n'));
     result.writeln('}');
@@ -344,5 +362,54 @@ class BuiltValueGenerator extends Generator {
     result.writeln('}');
 
     return result.toString();
+  }
+}
+
+class _FieldHelper {
+  final FieldElement field;
+  final FieldElement builderField;
+
+  DartType get fieldType => field.getter.returnType;
+  String get fieldTypeName => fieldType.displayName;
+
+  DartType get builderType => builderField.getter.returnType;
+  String get builderTypeName => builderType.displayName;
+
+  bool get isBuildable => builderTypeName.contains('Builder');
+
+  String get name => field.displayName;
+
+  bool get isBuiltCollectionType =>
+      fieldTypeName.startsWith('BuiltSet') || name.startsWith('BuiltList');
+
+  bool get isCollectionBuilderType =>
+      builderTypeName.startsWith('SetBuilder') ||
+      name.startsWith('ListBuilder');
+
+  bool get isCollectionBuilderOfBuildersType {
+    if (!isCollectionBuilderType) return false;
+    if (builderType is! InterfaceType) return false;
+    final InterfaceType genericType = builderType;
+    if (genericType.typeArguments.isEmpty) return false;
+    return (genericType.displayName.contains('Builder'));
+  }
+
+  String toBuilderTypeName() {}
+
+  String toObjectTypeName() {}
+
+  _FieldHelper(this.field, this.builderField);
+
+  static BuiltMap<String, _FieldHelper> create(
+      Iterable<FieldElement> fields, Iterable<FieldElement> builderFields) {
+    final builderFieldMap = new Map<String, FieldElement>.fromIterable(
+        builderFields,
+        key: (f) => f.displayName);
+
+    final fieldHelpers =
+        fields.map((f) => new _FieldHelper(f, builderFieldMap[f.displayName]));
+    return new BuiltMap<String, _FieldHelper>(
+        new Map<String, _FieldHelper>.fromIterable(fieldHelpers,
+            key: (fh) => fh.name));
   }
 }
