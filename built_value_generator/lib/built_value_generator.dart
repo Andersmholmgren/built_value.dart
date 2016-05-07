@@ -300,28 +300,10 @@ class BuiltValueGenerator extends Generator {
     result.writeln('_\$${className}Builder() : super._();');
 
     result.writeln('void replace(${className} other) {');
-    result.writeln((fields.map((field) {
-      String fieldBody() {
-        final fieldName = field.displayName;
-
-        if (buildableCollectionFieldNames.contains(fieldName)) {
-          final fieldTypeName = field.getter.returnType.displayName;
-          final newFieldTypeName = fieldTypeName.replaceFirst(
-              'Builder', '', fieldTypeName.indexOf('<'));
-//          return '$fieldName != null ? '
-//              'new $newFieldTypeName($fieldName.map((v) => '
-//              'v.toBuilder())).build() : null';
-          return '(other.$fieldName != null ? '
-              'new SetBuilder<PropertyBuilder>(other.$fieldName.map((p) => '
-              'p.toBuilder())) : null);';
-        } else {
-          return buildableFieldNames.contains(fieldName)
-              ? 'other.$fieldName?.toBuilder()'
-              : 'other.$fieldName';
-        }
-      }
-
-      return 'super.$name = ${fieldBody()};';
+    result.writeln((fieldNames.map((name) {
+      return buildableFieldNames.contains(name)
+          ? 'super.$name = other.$name?.toBuilder();'
+          : 'super.$name = other.$name;';
     }))
         .join('\n'));
     result.writeln('}');
