@@ -134,6 +134,7 @@ class BuiltValueGenerator extends Generator {
     final result = <FieldElement>[];
     for (final field in classElement.fields) {
       if (!field.isStatic &&
+          !field.isPrivate &&
           field.getter != null &&
           (field.getter.isAbstract || field.getter.isSynthetic)) {
         result.add(field);
